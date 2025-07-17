@@ -1,0 +1,119 @@
+#include <HardwareSerial.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+#define RXD2 16  // UART2 RX (Connect to VC-02 TX)
+#define TXD2 17  // UART2 TX (Not used)
+
+// GPIO Pin Assignments
+#define LIGHT_1 5
+#define LIGHT_2 18
+#define LIGHT_3 19
+#define LIGHT_4 21
+#define FAN_1 22
+#define FAN_2 23
+#define FAN_3 25
+
+HardwareSerial mySerial(2);  // Use UART2
+LiquidCrystal_I2C lcd(0x27, 16, 2); // LCD I2C address
+
+void setup() {
+    mySerial.begin(9600, SERIAL_8N1, RXD2, TXD2);  // Match VC-02 baud rate
+
+    // Initialize relay pins as output
+    pinMode(LIGHT_1, OUTPUT);
+    pinMode(LIGHT_2, OUTPUT);
+    pinMode(LIGHT_3, OUTPUT);
+    pinMode(LIGHT_4, OUTPUT);
+    pinMode(FAN_1, OUTPUT);
+    pinMode(FAN_2, OUTPUT);
+    pinMode(FAN_3, OUTPUT);
+
+    // Turn off all relays initially (Active-Low logic)
+    digitalWrite(LIGHT_1, HIGH);
+    digitalWrite(LIGHT_2, HIGH);
+    digitalWrite(LIGHT_3, HIGH);
+    digitalWrite(LIGHT_4, HIGH);
+    digitalWrite(FAN_1, HIGH);
+    digitalWrite(FAN_2, HIGH);
+    digitalWrite(FAN_3, HIGH);
+
+    Wire.begin(21, 22);  // I2C pins
+    lcd.begin();
+    lcd.backlight();
+    displayMessage("Waiting for VC-02");
+}
+
+void loop() {
+    while (mySerial.available() >= 2) {  // Expect at least 2 bytes
+        byte command1 = mySerial.read();
+        byte command2 = mySerial.read();
+        processCommand(command1, command2);
+        mySerial.flush();  // Clear UART buffer
+    }
+}
+
+void processCommand(byte cmd1, byte cmd2) {
+    if (cmd1 == 0xA1) {
+        switch (cmd2) {
+            case 0x01: controlRelay(LIGHT_1, LOW, "Light 1: ON"); break;
+            case 0x02: controlRelay(LIGHT_1, HIGH, "Light 1: OFF"); break;
+            case 0x03: controlRelay(LIGHT_2, LOW, "Light 2: ON"); break;
+            case 0x04: controlRelay(LIGHT_2, HIGH, "Light 2: OFF"); break;
+            case 0x05: controlRelay(LIGHT_3, LOW, "Light 3: ON"); break;
+            case 0x06: controlRelay(LIGHT_3, HIGH, "Light 3: OFF"); break;
+            case 0x07: controlRelay(LIGHT_4, LOW, "Light 4: ON"); break;
+            case 0x08: controlRelay(LIGHT_4, HIGH, "Light 4: OFF"); break;
+            case 0x09: controlRelay(FAN_1, LOW, "Fan 1: ON"); break;
+            case 0x10: controlRelay(FAN_1, HIGH, "Fan 1: OFF"); break;
+            case 0x11: controlRelay(FAN_2, LOW, "Fan 2: ON"); break;
+            case 0x12: controlRelay(FAN_2, HIGH, "Fan 2: OFF"); break;
+            case 0x14: controlRelay(FAN_3, LOW, "Fan 3: ON"); break;
+            case 0x21: controlRelay(FAN_3, HIGH, "Fan 3: OFF"); break;
+            
+            case 0x15: turnAllLights(LOW, "All Lights: ON"); break;
+            case 0x16: turnAllLights(HIGH, "All Lights: OFF"); break;
+            case 0x17: turnAllFans(LOW, "All Fans: ON"); break;
+            case 0x18: turnAllFans(HIGH, "All Fans: OFF"); break;
+            case 0x19: turnAllSystem(LOW, "System: ON"); break;
+            case 0x20: turnAllSystem(HIGH, "System: OFF"); break;
+
+            default: displayMessage("Unknown Cmd"); break;
+        }
+    }
+}
+
+// Function to control a single relay
+void controlRelay(int pin, int state, String message) {
+    digitalWrite(pin, state);
+    displayMessage(message);
+}
+
+// Function to control all lights
+void turnAllLights(int state, String message) {
+    digitalWrite(LIGHT_1, state);
+    digitalWrite(LIGHT_2, state);
+    digitalWrite(LIGHT_3, state);
+    digitalWrite(LIGHT_4, state);
+    displayMessage(message);
+}
+
+// Function to control all fans
+void turnAllFans(int state, String message) {
+    digitalWrite(FAN_1, state);
+    digitalWrite(FAN_2, state);
+    digitalWrite(FAN_3, state);
+    displayMessage(message);
+}
+
+// Function to control all appliances
+void turnAllSystem(int state, String message) {
+    turnAllLights(state, message);
+    turnAllFans(state, message);
+}
+
+void displayMessage(String message) {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print(message);
+}
